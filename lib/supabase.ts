@@ -23,6 +23,18 @@ export function readableError(error: unknown): string {
       : typeof error === "object" && error && "message" in error
         ? String(error.message)
         : "";
+  if (/record changed/i.test(message))
+    return "Someone changed this record. Refresh and reopen it before saving.";
+  if (/category is in use/i.test(message))
+    return "This category has active expenses. Move or delete those expenses first.";
+  if (/Restore the category/i.test(message))
+    return "Restore this expense’s category first, then restore the expense.";
+  if (/active category/i.test(message))
+    return "Choose an active category. Refresh if the category was recently changed.";
+  if (/Currency cannot change/i.test(message))
+    return "Currency cannot change after expenses are recorded.";
+  if (/duplicate key/i.test(message))
+    return "That name or record already exists. Refresh and try again.";
   if (/invalid login/i.test(message))
     return "The email or password is incorrect.";
   if (/email not confirmed/i.test(message))

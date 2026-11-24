@@ -39,9 +39,11 @@ import { BusinessForm } from "./business-form";
 import { Button, Notice, SetupNotice } from "./ui";
 import { ExpensesPanel } from "./expenses-panel";
 import { LoansPanel } from "./loans-panel";
+import { FundsPanel } from "./funds-panel";
 type View =
   | "expenses"
   | "loans"
+  | "funds"
   | "overview"
   | "businesses"
   | "members"
@@ -246,6 +248,7 @@ export function Workspace() {
   const navigation = [
     { id: "expenses", text: "Expenses", icon: LayoutDashboard },
     { id: "loans", text: "Loans", icon: LayoutDashboard },
+    { id: "funds", text: "Collections", icon: LayoutDashboard },
     { id: "overview", text: "Overview", icon: LayoutDashboard },
     { id: "businesses", text: "Businesses", icon: Building2 },
     { id: "members", text: "People & access", icon: Users },
@@ -403,6 +406,7 @@ export function Workspace() {
                         overview: "Business overview",
                         expenses: "Expenses & categories",
                         loans: "Loans & instalments",
+                        funds: "Collections & external funding",
                         businesses: "Your businesses",
                         members: "People & access",
                         settings: "Business settings",
@@ -503,6 +507,8 @@ export function Workspace() {
                     Create your first business
                   </Button>
                 </section>
+              ) : view === "funds" ? (
+                <FundsPanel key={business.id} business={business} owner={!!owner} />
               ) : view === "loans" ? (
                 <LoansPanel key={business.id} business={business} owner={!!owner} />
               ) : view === "expenses" ? (
@@ -577,7 +583,7 @@ export function Workspace() {
                     <h2>Your foundation is ready</h2>
                     <p className="muted">
                       Business setup and access management are available. Manage
-                      scheduled expenses and loans from their menus.
+                      scheduled expenses, loans and incoming funds from their menus.
                       Settlements and daily collection targets are coming next.
                     </p>
                     <div className="actions">
@@ -809,7 +815,7 @@ export function Workspace() {
           )}
           <footer>
             FlowLedger · A little clarity, every day.
-            <span>Phase 2B · {business?.currency || "LKR"}</span>
+            <span>Phase 2C · {business?.currency || "LKR"}</span>
           </footer>
         </div>
       </main>

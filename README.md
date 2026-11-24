@@ -11,7 +11,7 @@ A mobile-friendly business workspace using Next.js, TypeScript, Tailwind CSS and
 - Archive and restore businesses. Permanent deletion is intentionally deferred until dependent financial records exist and retention rules are agreed.
 - PWA manifest, icons and offline reconnect page. Financial records are never cached by the service worker; mutations require connectivity.
 
-Expense schedules and categories are added in Phase 2A below. Loans, daily collections/targets, external settlements, comparisons and notifications remain future phases.
+Expense schedules and categories are added in Phase 2A below. Loan schedules are added in Phase 2B. Daily collections/targets, external settlements, comparisons and notifications remain future phases.
 
 ## Run locally
 
@@ -74,3 +74,7 @@ Monthly schedules require an end date (inclusive, maximum five years) and create
 The additive migration is `supabase/migrations/20261114160800_expenses_categories.sql`. Run `supabase/tests/expenses.test.sql` in a disposable database or rollback transaction to check recurrence, permissions, restore/history, retry safety and optimistic concurrency. No service-role key or project configuration is committed.
 
 Current deployment uses Cloudflare Workers static assets: build `npm run build`, deploy `npx wrangler deploy --assets ./out --name flowledger --compatibility-date 2026-11-14`. Configure the two NEXT_PUBLIC values as build variables. Keep preview builds disabled until a separate test database is configured. Merging to main can trigger the production frontend deployment.
+
+## Phase 2B — loans
+
+See [Phase 2B acceptance](docs/phase-2b.md). The additive migration is `supabase/migrations/20261124210000_loans.sql`. Test against a disposable database before production. Loan schedules represent contractual obligations, not actual payment transactions.

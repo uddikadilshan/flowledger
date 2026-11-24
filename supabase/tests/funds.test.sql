@@ -1,0 +1,43 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set search_path=public,extensions;
+select plan(17);
+create temporary table ctx(bid uuid,eid uuid,extid uuid);
+grant all on ctx to authenticated;
+insert into auth.users(id,email,email_confirmed_at) values
+ ('00000000-0000-0000-0000-000000000041','fund-owner@test.invalid',now()),
+ ('00000000-0000-0000-0000-000000000042','fund-viewer@test.invalid',now()),
+ ('00000000-0000-0000-0000-000000000043','fund-outsider@test.invalid',now());
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000041',true);
+insert into ctx select (public.flowledger_command('create_business','{"name":"Funds test","description":"","email":"","phone":"","address":"","currency":"LKR","timezone":"Asia/Colombo","opening_balance":"100","balance_date":"2020-01-01","business_days":[1,2,3,4,5]}') #>> '{}')::uuid,gen_random_uuid(),gen_random_uuid();
+select public.fund_command('create',jsonb_build_object('business_id',bid,'id',eid,'kind','collection','amount','100.25','received_on','2020-01-02')) from ctx;
+select public.fund_command('create',jsonb_build_object('business_id',bid,'id',extid,'kind','external','amount','50.01','received_on','2020-01-02')) from ctx;
+select is((select count(*)::int from public.fund_entries where business_id=(select bid from ctx)),2,'two entries');
+select is((select public.fund_totals(bid,'2020-01-02','2020-01-02')->>'collection' from ctx),'10025','exact collection total');
+select is((select public.fund_totals(bid,'2020-01-02','2020-01-02')->>'external' from ctx),'5001','separate external total');
+select public.fund_command('create',jsonb_build_object('business_id',bid,'id',eid,'kind','collection','amount','100.25','received_on','2020-01-02')) from ctx;
+select is((select count(*)::int from public.fund_entries where business_id=(select bid from ctx)),2,'retry does not duplicate');
+select throws_ok($$select public.fund_command('create',jsonb_build_object('business_id',bid,'id',gen_random_uuid(),'kind','collection','amount','0','received_on','2020-01-02')) from ctx$$,'P0001','invalid entry','zero rejected');
+select throws_ok($$select public.fund_command('create',jsonb_build_object('business_id',bid,'id',gen_random_uuid(),'kind','collection','amount','1','received_on','2019-12-31')) from ctx$$,'P0001','Entry date must be between opening balance date and today','date before opening rejected');
+select throws_ok($$select public.fund_command('reverse',jsonb_build_object('business_id',bid,'id',eid,'version',1)) from ctx$$,'P0001','correction reason required','reason required');
+select public.fund_command('correct',jsonb_build_object('business_id',bid,'id',eid,'version',1,'kind','collection','amount','200.25','received_on','2020-01-02','reason','correct amount')) from ctx;
+select is((select public.fund_totals(bid,'2020-01-02','2020-01-02')->>'collection' from ctx),'20025','correction reflected');
+select throws_ok($$select public.fund_command('reverse',jsonb_build_object('business_id',bid,'id',eid,'version',1,'reason','stale')) from ctx$$,'P0001','record changed; refresh and retry','stale change rejected');
+select public.fund_command('reverse',jsonb_build_object('business_id',bid,'id',eid,'version',2,'reason','duplicate')) from ctx;
+select is((select public.fund_totals(bid,'2020-01-02','2020-01-02')->>'collection' from ctx),'0','reversal excluded');
+select public.fund_command('restore',jsonb_build_object('business_id',bid,'id',eid,'version',3,'reason','verified')) from ctx;
+select is((select public.fund_totals(bid,'2020-01-02','2020-01-02')->>'collection' from ctx),'20025','restore reflected');
+select is((select count(*)::int from public.fund_history where entry_id=(select eid from ctx)),4,'history preserved');
+select throws_ok($$update public.fund_entries set amount_minor=1$$,'42501',null,'direct writes denied');
+reset role;
+insert into public.business_members(business_id,user_id,role) select bid,'00000000-0000-0000-0000-000000000042','viewer' from ctx;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000042',true);
+select is((select count(*)::int from public.fund_entries where business_id=(select bid from ctx)),2,'viewer read');
+select throws_ok($$select public.fund_command('reverse',jsonb_build_object('business_id',bid,'id',eid,'version',4,'reason','test')) from ctx$$,'P0001','permission denied','viewer cannot write');
+select is((select count(*)::int from public.fund_history where business_id=(select bid from ctx)),0,'viewer cannot see history');
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000043',true);
+select is((select public.fund_totals(bid,'2020-01-02','2020-01-02')->>'collection' from ctx),'0','outsider cannot see totals');
+select * from finish();
+rollback;

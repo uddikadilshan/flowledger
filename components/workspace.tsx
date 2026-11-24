@@ -38,8 +38,10 @@ import {
 import { BusinessForm } from "./business-form";
 import { Button, Notice, SetupNotice } from "./ui";
 import { ExpensesPanel } from "./expenses-panel";
+import { LoansPanel } from "./loans-panel";
 type View =
   | "expenses"
+  | "loans"
   | "overview"
   | "businesses"
   | "members"
@@ -243,6 +245,7 @@ export function Workspace() {
     );
   const navigation = [
     { id: "expenses", text: "Expenses", icon: LayoutDashboard },
+    { id: "loans", text: "Loans", icon: LayoutDashboard },
     { id: "overview", text: "Overview", icon: LayoutDashboard },
     { id: "businesses", text: "Businesses", icon: Building2 },
     { id: "members", text: "People & access", icon: Users },
@@ -399,6 +402,7 @@ export function Workspace() {
                       {
                         overview: "Business overview",
                         expenses: "Expenses & categories",
+                        loans: "Loans & instalments",
                         businesses: "Your businesses",
                         members: "People & access",
                         settings: "Business settings",
@@ -499,6 +503,8 @@ export function Workspace() {
                     Create your first business
                   </Button>
                 </section>
+              ) : view === "loans" ? (
+                <LoansPanel key={business.id} business={business} owner={!!owner} />
               ) : view === "expenses" ? (
                 <ExpensesPanel
                   key={business.id}
@@ -571,8 +577,8 @@ export function Workspace() {
                     <h2>Your foundation is ready</h2>
                     <p className="muted">
                       Business setup and access management are available. Manage
-                      scheduled expenses from the Expenses menu. Loans,
-                      settlements and daily collection targets are coming next.
+                      scheduled expenses and loans from their menus.
+                      Settlements and daily collection targets are coming next.
                     </p>
                     <div className="actions">
                       {owner && (
@@ -803,7 +809,7 @@ export function Workspace() {
           )}
           <footer>
             FlowLedger · A little clarity, every day.
-            <span>Phase 2A · {business?.currency || "LKR"}</span>
+            <span>Phase 2B · {business?.currency || "LKR"}</span>
           </footer>
         </div>
       </main>

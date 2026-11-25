@@ -28,7 +28,8 @@ export function planTargets(input:{today:string;end:string;days:number[];busines
   const outstanding=grouped.get(date)!;cumulative+=outstanding;
   const shortfall=max(0n,cumulative-cash);
   const immediate=workdays===0&&shortfall>0n;
-  const daily=workdays?ceilDivide(shortfall,workdays):0n;
+  // Emergency cash is assumed separately arranged; do not count it twice.
+  const daily=workdays?ceilDivide(max(0n,shortfall-urgent),workdays):0n;
   if(immediate)urgent=max(urgent,shortfall);
   rate=max(rate,daily);
   deadlines.push({date,outstanding,cumulative,shortfall,workdays,rate:daily,urgent:immediate});

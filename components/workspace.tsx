@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
+  Bell,
   Building2,
   LayoutDashboard,
   Users,
@@ -42,12 +43,15 @@ import { FundsPanel } from "./funds-panel";
 import { SettlementsPanel } from "./settlements-panel";
 import { TargetsPanel } from "./targets-panel";
 import { DashboardPanel } from "./dashboard-panel";
+import { NotificationsPanel } from "./notifications-panel";
+import { notificationCount,refreshNotifications } from "@/lib/notifications";
 type View =
   | "expenses"
   | "loans"
   | "funds"
   | "settlements"
   | "targets"
+  | "notifications"
   | "overview"
   | "businesses"
   | "members"
@@ -76,6 +80,14 @@ export function Workspace() {
     generation = useRef(0);
   const business = businesses.find((b) => b.id === active),
     owner = business?.owner_id === user?.id;
+  const [unreadCount,setUnreadCount]=useState(0);
+  const inboxGeneration=useRef(0);
+  const updateInbox=useCallback(async (generate=false)=>{
+    const n=++inboxGeneration.current;
+    if(!business?.id||!user?.id)return;
+    try{if(generate)await refreshNotifications(business.id);const count=await notificationCount(business.id,user.id);if(n===inboxGeneration.current)setUnreadCount(count);}catch{if(n===inboxGeneration.current)setUnreadCount(0);}
+  },[business?.id,user?.id]);
+  useEffect(()=>{setUnreadCount(0);void updateInbox(true);const timer=window.setInterval(()=>void updateInbox(true),60000);return()=>{window.clearInterval(timer);inboxGeneration.current++;};},[updateInbox,view]);
   const refresh = useCallback(async (preferred?: string) => {
     const data = await listBusinesses();
     setBusinesses(data);
@@ -256,6 +268,7 @@ export function Workspace() {
     { id: "settlements", text: "Settlements", icon: LayoutDashboard },
     { id: "targets", text: "Daily targets", icon: LayoutDashboard },
     { id: "overview", text: "Overview", icon: LayoutDashboard },
+    { id: "notifications", text: unreadCount?`Notifications (${unreadCount})`:"Notifications", icon: Bell },
     { id: "businesses", text: "Businesses", icon: Building2 },
     { id: "members", text: "People & access", icon: Users },
     { id: "settings", text: "Settings", icon: Settings },
@@ -410,6 +423,7 @@ export function Workspace() {
                     {
                       {
                         overview: "Financial dashboard",
+                        notifications: "Notifications & reminders",
                         expenses: "Expenses & categories",
                         loans: "Loans & instalments",
                         funds: "Collections & external funding",
@@ -529,6 +543,8 @@ export function Workspace() {
                   business={business}
                   owner={!!owner}
                 />
+              ) : view === "notifications" && user ? (
+                <NotificationsPanel key={business.id+user.id} business={business} uid={user.id} navigate={navigate} onChange={()=>void updateInbox()} />
               ) : view === "overview" ? (
                 <DashboardPanel key={business.id} business={business} owner={!!owner} navigate={navigate} />
               ) : view === "settings" ? (
@@ -746,7 +762,7 @@ export function Workspace() {
           )}
           <footer>
             FlowLedger · A little clarity, every day.
-            <span>Phase 4 · {business?.currency || "LKR"}</span>
+            <span>Phase 5 · {business?.currency || "LKR"}</span>
           </footer>
         </div>
       </main>

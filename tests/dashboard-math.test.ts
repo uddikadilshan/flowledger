@@ -1,0 +1,11 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {aggregateFlow,changePercent,ratio,signedMoney,monthShift,monthRange,comparableRange,expenseBreakdown} from "../lib/dashboard-math";
+test("cash flow excludes reversals and keeps external separate",()=>{const d="2026-11-02";assert.deepEqual(aggregateFlow([{kind:"collection",amount_minor:10001,received_on:d,reversed_at:null},{kind:"external",amount_minor:2500,received_on:d,reversed_at:null},{kind:"collection",amount_minor:900,received_on:d,reversed_at:d}],[{business_minor:8000,external_minor:5000,paid_on:d,reversed_at:null},{business_minor:100,external_minor:0,paid_on:d,reversed_at:d}],d,d),{collection:10001n,external:2500n,payments:13000n,net:-499n});});
+test("negative money format",()=>assert.equal(signedMoney(-1n,"LKR"),"−LKR 0.01"));
+test("matched month to date",()=>assert.deepEqual(comparableRange("2028-03","2028-03-30"),{range:{from:"2028-03-01",to:"2028-03-30"},previous:{from:"2028-02-01",to:"2028-02-29"}}));
+test("past month uses full previous month",()=>assert.equal(comparableRange("2026-01","2026-03-02").previous.to,"2025-12-31"));
+test("month shift across year",()=>assert.equal(monthShift("2026-01",-1),"2025-12"));
+test("leap month end",()=>assert.equal(monthRange("2028-02").to,"2028-02-29"));
+test("zero previous and ratio",()=>{assert.equal(changePercent(100n,0n),"New activity");assert.equal(changePercent(50n,100n),"−50.0%");assert.equal(ratio(1n,0n),0);});
+test("category aggregation excludes deleted records",()=>assert.deepEqual(expenseBreakdown([{category_id:"a",amount_minor:100,deleted_at:null},{category_id:"a",amount_minor:200,deleted_at:null},{category_id:"b",amount_minor:400,deleted_at:"2026-11-01"}],[{id:"a",name:"Rent"}]),[{id:"a",label:"Rent",amount:300n}]));

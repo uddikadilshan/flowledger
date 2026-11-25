@@ -1,0 +1,15 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {planTargets,type Obligation} from "../lib/target-planner";
+const item=(due_date:string,amount_minor:string,paid_minor="0",kind:Obligation["kind"]="expense"):Obligation=>({id:due_date+kind,kind,label:"Test",due_date,amount_minor,paid_minor});
+const base={today:"2026-11-23",end:"2026-11-30",days:[1,2,3,4,5],business:0n,external:0n};
+test("early deadline dominates monthly average",()=>{const p=planTargets({...base,obligations:[item("2026-11-24","10000"),item("2026-11-30","10000")]});assert.equal(p.rate,5000n);assert.equal(p.critical,"2026-11-24");});
+test("cash and external funds reduce gap once",()=>{const p=planTargets({...base,business:2000n,external:3000n,obligations:[item("2026-11-24","10000")]});assert.equal(p.rate,2500n);assert.equal(p.required,5000n);});
+test("partial and full settlements",()=>{const p=planTargets({...base,obligations:[item("2026-11-24","10000","6000"),item("2026-11-25","1000","1000","loan")]});assert.equal(p.required,4000n);assert.equal(p.loans,0n);});
+test("overdue obligations require today's collections",()=>{const p=planTargets({...base,obligations:[item("2026-11-01","10001")]});assert.equal(p.overdue,10001n);assert.equal(p.targetToday,10001n);});
+test("weekend deadline excludes non-working days",()=>{const p=planTargets({...base,obligations:[item("2026-11-29","10001")]});assert.equal(p.rate,2001n);});
+test("non-working day with immediate shortfall",()=>{const p=planTargets({...base,today:"2026-11-28",obligations:[item("2026-11-29","10000")]});assert.equal(p.targetToday,0n);assert.equal(p.urgent,10000n);});
+test("non-working day with later deadline",()=>{const p=planTargets({...base,today:"2026-11-28",obligations:[item("2026-11-30","10000")]});assert.equal(p.targetToday,0n);assert.equal(p.rate,10000n);});
+test("fully funded or empty obligations",()=>{assert.equal(planTargets({...base,business:10000n,obligations:[item("2026-11-24","10000")]}).rate,0n);assert.equal(planTargets({...base,obligations:[]}).required,0n);});
+test("exclude future outside horizon; combine same date",()=>{const p=planTargets({...base,obligations:[item("2026-11-24","101"),item("2026-11-24","100","0","loan"),item("2026-12-01","99999")]});assert.equal(p.required,201n);assert.equal(p.rate,101n);assert.equal(p.deadlines.length,1);});
+test("reject invalid data",()=>{assert.throws(()=>planTargets({...base,days:[],obligations:[]}));assert.throws(()=>planTargets({...base,obligations:[item("2026-11-24","100","101")]}));});

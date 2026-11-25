@@ -27,7 +27,6 @@ import {
   listMembers,
 } from "@/lib/api";
 import {
-  days,
   invitationStatus,
   money,
   validLogo,

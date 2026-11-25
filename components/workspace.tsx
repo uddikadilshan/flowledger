@@ -42,6 +42,7 @@ import { LoansPanel } from "./loans-panel";
 import { FundsPanel } from "./funds-panel";
 import { SettlementsPanel } from "./settlements-panel";
 import { TargetsPanel } from "./targets-panel";
+import { DashboardPanel } from "./dashboard-panel";
 type View =
   | "expenses"
   | "loans"
@@ -409,7 +410,7 @@ export function Workspace() {
                   <h1>
                     {
                       {
-                        overview: "Business overview",
+                        overview: "Financial dashboard",
                         expenses: "Expenses & categories",
                         loans: "Loans & instalments",
                         funds: "Collections & external funding",
@@ -530,88 +531,7 @@ export function Workspace() {
                   owner={!!owner}
                 />
               ) : view === "overview" ? (
-                <>
-                  <section className="hero">
-                    <div>
-                      <span className="eyebrow">Business profile</span>
-                      <h2>{business.name}</h2>
-                      <p>
-                        {business.description ||
-                          "Your business workspace is ready."}
-                      </p>
-                      <span className="badge">
-                        {owner ? "Admin / Owner" : "View-only access"}
-                      </span>
-                    </div>
-                    <div className="hero-balance">
-                      <span>Opening available funds</span>
-                      <strong>
-                        {money(business.opening_balance, business.currency)}
-                      </strong>
-                      <small>
-                        Effective {business.balance_date} · {business.timezone}
-                      </small>
-                    </div>
-                  </section>
-                  <div className="overview-grid">
-                    <section className="card">
-                      <div className="section-title">
-                        <h2>Working week</h2>
-                        <span className="badge">
-                          {business.business_days.length} business days
-                        </span>
-                      </div>
-                      <p className="muted">
-                        Your collection calendar will use these days.
-                      </p>
-                      <div className="week">
-                        {days.map((d, i) => (
-                          <span
-                            key={d}
-                            className={
-                              business.business_days.includes(i)
-                                ? "selected"
-                                : ""
-                            }
-                          >
-                            {d}
-                          </span>
-                        ))}
-                      </div>
-                    </section>
-                    <section className="card">
-                      <h2>Contact details</h2>
-                      <dl>
-                        <dt>Email</dt>
-                        <dd>{business.email || "Not added"}</dd>
-                        <dt>Phone</dt>
-                        <dd>{business.phone || "Not added"}</dd>
-                        <dt>Address</dt>
-                        <dd>{business.address || "Not added"}</dd>
-                      </dl>
-                    </section>
-                  </div>
-                  <section className="card">
-                    <h2>Your foundation is ready</h2>
-                    <p className="muted">
-                      Business setup and access management are available. Manage
-                      scheduled expenses, loans and incoming funds from their menus.
-                      Use Daily targets to plan collections against upcoming deadlines.
-                    </p>
-                    <div className="actions">
-                      {owner && (
-                        <>
-                          <Button secondary onClick={() => navigate("edit")}>
-                            Edit business
-                          </Button>
-                          <Button secondary onClick={() => navigate("members")}>
-                            Manage viewers
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </section>
-                </>
+                <DashboardPanel key={business.id} business={business} owner={!!owner} navigate={navigate} />
               ) : view === "settings" ? (
                 <div className="overview-grid">
                   <section className="card">
@@ -827,7 +747,7 @@ export function Workspace() {
           )}
           <footer>
             FlowLedger · A little clarity, every day.
-            <span>Phase 3 · {business?.currency || "LKR"}</span>
+            <span>Phase 4 · {business?.currency || "LKR"}</span>
           </footer>
         </div>
       </main>

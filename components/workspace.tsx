@@ -41,11 +41,13 @@ import { ExpensesPanel } from "./expenses-panel";
 import { LoansPanel } from "./loans-panel";
 import { FundsPanel } from "./funds-panel";
 import { SettlementsPanel } from "./settlements-panel";
+import { TargetsPanel } from "./targets-panel";
 type View =
   | "expenses"
   | "loans"
   | "funds"
   | "settlements"
+  | "targets"
   | "overview"
   | "businesses"
   | "members"
@@ -252,6 +254,7 @@ export function Workspace() {
     { id: "loans", text: "Loans", icon: LayoutDashboard },
     { id: "funds", text: "Collections", icon: LayoutDashboard },
     { id: "settlements", text: "Settlements", icon: LayoutDashboard },
+    { id: "targets", text: "Daily targets", icon: LayoutDashboard },
     { id: "overview", text: "Overview", icon: LayoutDashboard },
     { id: "businesses", text: "Businesses", icon: Building2 },
     { id: "members", text: "People & access", icon: Users },
@@ -411,6 +414,7 @@ export function Workspace() {
                         loans: "Loans & instalments",
                         funds: "Collections & external funding",
                         settlements: "Settlements & payments",
+                        targets: "Smart daily collection targets",
                         businesses: "Your businesses",
                         members: "People & access",
                         settings: "Business settings",
@@ -511,6 +515,8 @@ export function Workspace() {
                     Create your first business
                   </Button>
                 </section>
+              ) : view === "targets" ? (
+                <TargetsPanel key={business.id} business={business} />
               ) : view === "settlements" ? (
                 <SettlementsPanel key={business.id} business={business} owner={!!owner} />
               ) : view === "funds" ? (
@@ -590,7 +596,7 @@ export function Workspace() {
                     <p className="muted">
                       Business setup and access management are available. Manage
                       scheduled expenses, loans and incoming funds from their menus.
-                      Daily collection targets are coming next.
+                      Use Daily targets to plan collections against upcoming deadlines.
                     </p>
                     <div className="actions">
                       {owner && (
@@ -821,7 +827,7 @@ export function Workspace() {
           )}
           <footer>
             FlowLedger · A little clarity, every day.
-            <span>Phase 2D · {business?.currency || "LKR"}</span>
+            <span>Phase 3 · {business?.currency || "LKR"}</span>
           </footer>
         </div>
       </main>

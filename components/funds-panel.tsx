@@ -3,12 +3,13 @@ import {useEffect,useRef,useState,type FormEvent} from "react";
 import {type Business,localDate} from "@/lib/domain";
 import {readableError} from "@/lib/supabase";
 import {decimalAmount,formatMinor} from "@/lib/expenses";
-import {fundSchema,fundCommand,fundEntries,fundTotals,fundHistory,monthBounds,availableFunds,type FundEntry,type FundInput,type FundHistory,type Totals} from "@/lib/funds";
+import {fundSchema,fundCommand,fundEntries,fundTotals,fundHistory,monthBounds,type FundEntry,type FundInput,type FundHistory,type Totals} from "@/lib/funds";
+import {settlementBalance} from "@/lib/settlements";
 import {Button,Notice} from "./ui";
 export function FundsPanel({business,owner}:{business:Business;owner:boolean}){
  const today=localDate(business.timezone),canWrite=owner&&!business.archived_at;
  const [month,setMonth]=useState(today.slice(0,7)),[day,setDay]=useState(today),[reversed,setReversed]=useState(false);
- const [rows,setRows]=useState<FundEntry[]>([]),[summary,setSummary]=useState<{daily:Totals;monthly:Totals;all:Totals}|null>(null);
+ const [rows,setRows]=useState<FundEntry[]>([]),[summary,setSummary]=useState<{daily:Totals;monthly:Totals;all:Totals;balance:{business:bigint;external:bigint}}|null>(null);
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
  const [form,setForm]=useState<FundInput|null>(null),[editing,setEditing]=useState<FundEntry|null>(null),[reason,setReason]=useState(""),[history,setHistory]=useState<{id:string;items:FundHistory[]}|null>(null);
  const lock=useRef(false),generation=useRef(0),request=useRef("");
@@ -16,10 +17,10 @@ export function FundsPanel({business,owner}:{business:Business;owner:boolean}){
   const n=++generation.current;setLoading(true);setSummary(null);
   try{
    const {from,to}=monthBounds(month);
-   const [entries,daily,monthly,all]=await Promise.all([
-    fundEntries(business.id,from,to,reversed),fundTotals(business.id,day,day),fundTotals(business.id,from,to),fundTotals(business.id,business.balance_date,today)
+   const [entries,daily,monthly,all,balance]=await Promise.all([
+    fundEntries(business.id,from,to,reversed),fundTotals(business.id,day,day),fundTotals(business.id,from,to),fundTotals(business.id,business.balance_date,today),settlementBalance(business.id,today)
    ]);
-   if(n===generation.current){setRows(entries);setSummary({daily,monthly,all});}
+   if(n===generation.current){setRows(entries);setSummary({daily,monthly,all,balance});}
   }finally{if(n===generation.current)setLoading(false);}
  }
  useEffect(()=>{setRows([]);setHistory(null);setForm(null);reload().catch(e=>setError(readableError(e)));return()=>{generation.current++;};},[business.id,month,day,reversed]);
@@ -52,7 +53,7 @@ export function FundsPanel({business,owner}:{business:Business;owner:boolean}){
  return <div className="stack">
   {error&&<Notice error>{error} <button className="text-link" disabled={busy} onClick={()=>run(reload)}>Refresh</button></Notice>}
   {message&&<Notice>{message}</Notice>}
-  <section className="card expense-toolbar"><div><span className="eyebrow">Available funds before settlements</span><div className="expense-total">{summary?fmt(availableFunds(business.opening_balance,summary.all)):"—"}</div><p className="muted">Opening balance + incoming funds through {today}. Payments are not deducted yet.</p></div>
+  <section className="card expense-toolbar"><div><span className="eyebrow">Available funds after settlements</span><div className="expense-total">{summary?fmt(summary.balance.business+summary.balance.external):"—"}</div><p className="muted">Opening balance + incoming funds through {today}. Recorded payments are deducted.</p></div>
    {canWrite&&<div className="actions"><Button disabled={busy||loading} onClick={()=>open(undefined,"collection")}>Add collection</Button><Button secondary disabled={busy||loading} onClick={()=>open(undefined,"external")}>Add external funds</Button></div>}
   </section>
   <section className="card stack"><div className="form-grid"><label>Collection date<input type="date" value={day} max={today} disabled={busy} onChange={e=>{if(e.target.value)setDay(e.target.value);}}/></label><label>Month<input type="month" value={month} max={today.slice(0,7)} disabled={busy} onChange={e=>{if(e.target.value)setMonth(e.target.value);}}/></label></div>

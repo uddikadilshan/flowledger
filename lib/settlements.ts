@@ -1,0 +1,11 @@
+import {client} from "./supabase";
+import {toMinor} from "./expenses";
+export type Target={id:string;kind:"expense"|"loan";label:string;due_date:string;amount_minor:string;paid_minor:string};
+export type Settlement={id:string;target_label:string;due_date:string;paid_on:string;business_minor:number;external_minor:number;note:string;reversed_at:string|null;reversal_reason:string|null};
+export function remaining(t:Target){return BigInt(t.amount_minor)-BigInt(t.paid_minor);}
+export function paymentStatus(t:Target){return remaining(t)===0n?"Paid":BigInt(t.paid_minor)>0n?"Partially paid":"Unpaid";}
+export function parseAllocation(b:string,e:string){if(![b,e].every(v=>/^\d{1,12}(\.\d{1,2})?$/.test(v)))throw Error("Enter valid amounts.");const business=toMinor(b),external=toMinor(e);if(business+external<=0n)throw Error("Enter a positive payment.");return {business,external,total:business+external};}
+export async function settlementBalance(bid:string,as_of:string){const {data,error}=await client().rpc("settlement_balance",{bid,as_of});if(error)throw error;return {business:BigInt(data.business),external:BigInt(data.external)};}
+export async function targetsFor(bid:string,from_date:string,to_date:string):Promise<Target[]>{const rows:Target[]=[];for(let offset=0;;offset+=500){const {data,error}=await client().rpc("settlement_targets",{bid,from_date,to_date}).range(offset,offset+499);if(error)throw error;rows.push(...(data??[]) as Target[]);if(!data||data.length<500)return rows;}}
+export async function settlementsFor(bid:string,from:string,to:string):Promise<Settlement[]>{const rows:Settlement[]=[];for(let offset=0;;offset+=500){const {data,error}=await client().from("settlements").select("id,target_label,due_date,paid_on,business_minor,external_minor,note,reversed_at,reversal_reason").eq("business_id",bid).gte("paid_on",from).lte("paid_on",to).order("paid_on",{ascending:false}).order("id").range(offset,offset+499);if(error)throw error;rows.push(...(data??[]) as Settlement[]);if(!data||data.length<500)return rows;}}
+export async function settlementCommand(action:string,payload:Record<string,unknown>){const {data,error}=await client().rpc("settlement_command",{action,payload});if(error)throw error;return data;}

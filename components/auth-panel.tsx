@@ -1,4 +1,11 @@
 "use client";
+import { ButtonLink } from "./vip-ui/button-link";
+import { Card } from "./vip-ui/card";
+import { Form } from "./vip-ui/form";
+import { ThemeSwitch } from "./theme-switch";
+import { TextField } from "./vip-ui/text-field";
+import { PasswordField } from "./vip-ui/password-field";
+import { ToastFeedback } from "./feedback";
 import { useEffect, useState, type FormEvent } from "react";
 import { client, configured, readableError } from "@/lib/supabase";
 import { Button, Notice, SetupNotice } from "./ui";
@@ -85,31 +92,21 @@ export function AuthPanel() {
   if (!configured)
     return (
       <main className="auth-screen">
+        <div className="auth-theme">
+          <ThemeSwitch />
+        </div>
         <SetupNotice />
       </main>
     );
   return (
     <main className="auth-screen">
-      <div className="auth-story">
+      <div className="auth-theme">
+        <ThemeSwitch />
+      </div>
+      <Card className="auth-card">
         <div className="wordmark">
           ƒ <span>FlowLedger.</span>
         </div>
-        <span className="eyebrow">A little clarity, every day</span>
-        <h1>
-          Your business.
-          <br />A clearer picture.
-        </h1>
-        <p>
-          Bring your business details and people together in one calm, organized
-          workspace.
-        </p>
-        <div className="story-line" />
-        <p className="small">
-          Secure access · Multiple businesses · Made for mobile
-        </p>
-      </div>
-      <section className="auth-card">
-        <span className="eyebrow">Welcome to FlowLedger</span>
         <h1>
           {
             {
@@ -127,47 +124,49 @@ export function AuthPanel() {
               ? "Sign in to your business workspace."
               : "We’ll help you get back into your account."}
         </p>
+        <ToastFeedback error={error} message={message} />
         {error && <Notice error>{error}</Notice>}
-        {message && <Notice>{message}</Notice>}
+
         {ready && sessionReady && mode !== "reset" ? (
           <>
             <Notice>
               You’re signed in. If you just verified your email, your account is
               ready.
             </Notice>
-            <a className="button" href="/">
+            <ButtonLink size="lg" href="/">
               Open workspace
-            </a>
+            </ButtonLink>
           </>
         ) : (
-          <form onSubmit={submit} className="stack">
+          <Form validationBehavior="native" onSubmit={submit} className="stack">
             {mode !== "reset" && (
-              <label>
-                Email
-                <input
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  maxLength={254}
-                />
-              </label>
+              <TextField
+                name="email"
+                label="Email"
+                type="email"
+                autoComplete="email"
+                isRequired
+                maxLength={254}
+                size="lg"
+                validationBehavior="native"
+              />
             )}
             {mode !== "forgot" && (
-              <label>
-                {mode === "reset" ? "New password" : "Password"}
-                <input
-                  name="password"
-                  type="password"
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
-                  required
-                  minLength={mode === "login" ? 1 : 12}
-                  maxLength={128}
-                />
-                {mode !== "login" && <small>Use at least 12 characters.</small>}
-              </label>
+              <PasswordField
+                name="password"
+                label={mode === "reset" ? "New password" : "Password"}
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
+                description={
+                  mode !== "login" ? "Use at least 12 characters." : undefined
+                }
+                isRequired
+                minLength={mode === "login" ? 1 : 12}
+                maxLength={128}
+                size="lg"
+                validationBehavior="native"
+              />
             )}
             {mode === "reset" && ready && !sessionReady && (
               <Notice error>
@@ -186,14 +185,14 @@ export function AuthPanel() {
                     reset: "Update password",
                   }[mode]}
             </Button>
-          </form>
+          </Form>
         )}
         <div className="auth-links">
           <a href="/auth/">Sign in</a>
           <a href="/auth/?mode=signup">Create account</a>
           <a href="/auth/?mode=forgot">Forgot password?</a>
         </div>
-      </section>
+      </Card>
     </main>
   );
 }

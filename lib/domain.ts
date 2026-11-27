@@ -9,6 +9,10 @@ export const businessSchema = z.object({
   currency: z
     .string()
     .regex(/^[A-Z]{3}$/, "Enter a three-letter currency code."),
+  country_code: z
+    .string()
+    .regex(/^[A-Z]{2}$/, "Choose a country.")
+    .nullish(),
   timezone: z.string().refine((v) => {
     try {
       new Intl.DateTimeFormat("en", { timeZone: v });
@@ -86,6 +90,7 @@ export function emptyBusiness(): BusinessInput {
     phone: "",
     address: "",
     currency: "LKR",
+    country_code: null,
     timezone: "Asia/Colombo",
     opening_balance: "0",
     balance_date: localDate(),

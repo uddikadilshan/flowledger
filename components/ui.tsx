@@ -1,13 +1,38 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Card } from "./vip-ui/card";
+import {
+  Button as VipButton,
+  type ButtonProps as VipButtonProps,
+} from "./vip-ui/button";
+import type { ReactNode } from "react";
 export function Button({
   secondary = false,
+  danger = false,
   className = "",
+  disabled,
+  type = "submit",
+  size = "lg",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { secondary?: boolean }) {
+}: Omit<VipButtonProps, "isDisabled" | "variant" | "className"> & {
+  disabled?: boolean;
+  className?: string;
+  secondary?: boolean;
+  danger?: boolean;
+}) {
+  const variant = danger
+    ? secondary
+      ? "outline"
+      : "destructive"
+    : secondary
+      ? "secondary"
+      : "default";
   return (
-    <button
+    <VipButton
       {...props}
-      className={`${secondary ? "button secondary" : "button"} ${className}`}
+      type={type}
+      size={size}
+      isDisabled={disabled}
+      variant={variant}
+      className={`flow-button${secondary && danger ? " flow-button-danger-outline" : ""} ${className}`}
     />
   );
 }
@@ -29,7 +54,7 @@ export function Notice({
 }
 export function SetupNotice() {
   return (
-    <div className="auth-card">
+    <Card className="auth-card">
       <div className="wordmark">
         ƒ <span>FlowLedger</span>
       </div>
@@ -40,6 +65,6 @@ export function SetupNotice() {
         database migration, then restart or rebuild.
       </p>
       <Notice>No demo records or local business storage are used.</Notice>
-    </div>
+    </Card>
   );
 }

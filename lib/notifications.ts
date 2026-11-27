@@ -1,11 +1,11 @@
 import {client} from "./supabase";
 export type Preferences={upcoming:boolean;overdue:boolean;targets:boolean;lead_days:number};
-export type Notification={id:string;kind:"upcoming"|"overdue"|"target"|"funding"|"funded";title:string;detail:string;amount_minor:number|string;alert_date:string;created_at:string;read_at:string|null;dismissed_at:string|null};
+export type Notification={id:string;alert_key:string;kind:"upcoming"|"overdue"|"target"|"funding"|"funded";title:string;detail:string;amount_minor:number|string;alert_date:string;created_at:string;read_at:string|null;dismissed_at:string|null};
 export const defaults:Preferences={upcoming:true,overdue:true,targets:true,lead_days:3};
 export async function notificationInbox(bid:string,uid:string){
  const rows:Notification[]=[];
  for(let offset=0;;offset+=500){
- const {data,error}=await client().from("notifications").select("id,kind,title,detail,amount_minor,alert_date,created_at,read_at,dismissed_at").eq("business_id",bid).eq("user_id",uid).is("dismissed_at",null).order("created_at",{ascending:false}).order("id").range(offset,offset+499);
+ const {data,error}=await client().from("notifications").select("id,alert_key,kind,title,detail,amount_minor,alert_date,created_at,read_at,dismissed_at").eq("business_id",bid).eq("user_id",uid).is("dismissed_at",null).order("created_at",{ascending:false}).order("id").range(offset,offset+499);
  if(error)throw error;rows.push(...(data??[]) as Notification[]);if(!data||data.length<500)return rows;
  }
 }

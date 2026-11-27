@@ -7,3 +7,11 @@ out/
 supabase/.temp/
 supabase/.branches/
 .DS_Store
+
+# Generated Next.js declarations
+/next-env.d.ts
+
+# Local agent configuration and skill installs
+/.agents/
+/.codex/
+/skills-lock.json

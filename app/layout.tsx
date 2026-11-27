@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { themeBootstrap } from "@/lib/theme";
+import { FeedbackProvider } from "@/components/feedback";
 import { Pwa } from "@/components/pwa";
 export const metadata: Metadata = {
   title: "FlowLedger — Your business, in focus",
@@ -21,9 +23,12 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+      </head>
       <body>
-        {children}
+        <FeedbackProvider>{children}</FeedbackProvider>
         <Pwa />
       </body>
     </html>

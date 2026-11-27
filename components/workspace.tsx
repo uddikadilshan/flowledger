@@ -1,24 +1,55 @@
 "use client";
 import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
+  Button as VipButton,
+  type ButtonProps as VipButtonProps,
+} from "./vip-ui/button";
+import { TextField } from "./vip-ui/text-field";
+import { Form } from "./vip-ui/form";
+import { Card } from "./vip-ui/card";
+import { FileTrigger } from "./vip-ui/file-trigger";
+import {
+  MenuContent,
+  MenuItem,
+  MenuPopover,
+  MenuSeparator,
+  MenuTrigger,
+} from "./vip-ui/menu";
+import { BusinessSwitcher } from "./business-switcher";
+import { ThemeSwitch } from "./theme-switch";
+import {
+  Sidebar,
+  SidebarInset,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarContent,
+  SidebarMenu,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "./vip-ui/sidebar";
+import { Badge } from "./vip-ui/badge";
+import { ToastFeedback, useFeedback } from "./feedback";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   Bell,
   Building2,
   LayoutDashboard,
+  CalendarDays,
+  Receipt,
+  Landmark,
+  Wallet,
+  ArrowLeftRight,
+  Target,
   Users,
   Archive,
   Settings,
   Plus,
   LogOut,
+  CircleUserRound,
+  Pencil,
   ArrowUpRight,
-  Menu,
-  X,
 } from "lucide-react";
 import { client, configured, readableError } from "@/lib/supabase";
 import {
@@ -29,6 +60,7 @@ import {
 } from "@/lib/api";
 import {
   invitationStatus,
+  days,
   money,
   validLogo,
   type Business,
@@ -42,10 +74,17 @@ import { LoansPanel } from "./loans-panel";
 import { FundsPanel } from "./funds-panel";
 import { SettlementsPanel } from "./settlements-panel";
 import { TargetsPanel } from "./targets-panel";
+import { CalendarPanel } from "./calendar-panel";
+import type { Target as Obligation } from "@/lib/settlements";
 import { DashboardPanel } from "./dashboard-panel";
 import { NotificationsPanel } from "./notifications-panel";
-import { notificationCount,refreshNotifications } from "@/lib/notifications";
+import {
+  notificationCount,
+  refreshNotifications,
+  type Notification,
+} from "@/lib/notifications";
 type View =
+  | "calendar"
   | "expenses"
   | "loans"
   | "funds"
@@ -60,6 +99,7 @@ type View =
   | "create"
   | "edit";
 export function Workspace() {
+  const { confirm, notify } = useFeedback();
   const [user, setUser] = useState<User | null>(null),
     [businesses, setBusinesses] = useState<Business[]>([]),
     [active, setActive] = useState(""),
@@ -68,26 +108,54 @@ export function Workspace() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
-    [menu, setMenu] = useState(false),
     [members, setMembers] = useState<Member[]>([]),
     [invites, setInvites] = useState<Invitation[]>([]),
     [email, setEmail] = useState(""),
     [inviteLink, setInviteLink] = useState(""),
     [token, setToken] = useState(""),
-    [logo, setLogo] = useState(""),
+    [loadedLogo, setLoadedLogo] = useState<{
+      path: string;
+      url: string;
+    } | null>(null),
     [online, setOnline] = useState(true);
   const operationLock = useRef(false),
     generation = useRef(0);
   const business = businesses.find((b) => b.id === active),
     owner = business?.owner_id === user?.id;
-  const [unreadCount,setUnreadCount]=useState(0);
-  const inboxGeneration=useRef(0);
-  const updateInbox=useCallback(async (generate=false)=>{
-    const n=++inboxGeneration.current;
-    if(!business?.id||!user?.id)return;
-    try{if(generate)await refreshNotifications(business.id);const count=await notificationCount(business.id,user.id);if(n===inboxGeneration.current)setUnreadCount(count);}catch{if(n===inboxGeneration.current)setUnreadCount(0);}
-  },[business?.id,user?.id]);
-  useEffect(()=>{setUnreadCount(0);void updateInbox(true);const timer=window.setInterval(()=>void updateInbox(true),60000);return()=>{window.clearInterval(timer);inboxGeneration.current++;};},[updateInbox,view]);
+  const logoPath = business?.logo_path;
+  const userId = user?.id;
+  const logo = loadedLogo && loadedLogo.path === logoPath ? loadedLogo.url : "";
+  const pageHeading = useRef<HTMLHeadingElement>(null);
+  const [linkedObligation, setLinkedObligation] = useState<{
+    target: Obligation;
+    pay: boolean;
+  } | null>(null);
+  const [activeAlert, setActiveAlert] = useState<Notification | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const inboxGeneration = useRef(0);
+  const updateInbox = useCallback(
+    async (generate = false) => {
+      const n = ++inboxGeneration.current;
+      if (!business?.id || !user?.id) return;
+      try {
+        if (generate) await refreshNotifications(business.id);
+        const count = await notificationCount(business.id, user.id);
+        if (n === inboxGeneration.current) setUnreadCount(count);
+      } catch {
+        if (n === inboxGeneration.current) setUnreadCount(0);
+      }
+    },
+    [business?.id, user?.id],
+  );
+  useEffect(() => {
+    setUnreadCount(0);
+    void updateInbox(true);
+    const timer = window.setInterval(() => void updateInbox(true), 60000);
+    return () => {
+      window.clearInterval(timer);
+      inboxGeneration.current++;
+    };
+  }, [updateInbox]);
   const refresh = useCallback(async (preferred?: string) => {
     const data = await listBusinesses();
     setBusinesses(data);
@@ -148,15 +216,7 @@ export function Workspace() {
     setMembers([]);
     setInvites([]);
     setInviteLink("");
-    setLogo("");
     if (!business) return;
-    if (business.logo_path)
-      client()
-        .storage.from("business-logos")
-        .createSignedUrl(business.logo_path, 300)
-        .then(({ data }) => {
-          if (n === generation.current) setLogo(data?.signedUrl || "");
-        });
     if (view === "members" && owner)
       Promise.all([listMembers(business.id), listInvitations(business.id)])
         .then(([m, i]) => {
@@ -169,6 +229,34 @@ export function Workspace() {
           if (n === generation.current) setError(readableError(e));
         });
   }, [business, view, owner]);
+  useEffect(() => {
+    setLoadedLogo(null);
+    if (!logoPath || !userId) return;
+    const controller = new AbortController();
+    let url: string | undefined;
+    async function loadLogo(path: string) {
+      try {
+        const { data } = await client().storage.from("business-logos").download(
+          path,
+          {},
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          },
+        );
+        if (!data || controller.signal.aborted) return;
+        url = URL.createObjectURL(data);
+        setLoadedLogo({ path, url });
+      } catch {
+        // The business picker already displays its fallback icon.
+      }
+    }
+    void loadLogo(logoPath);
+    return () => {
+      controller.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [logoPath, userId]);
   async function run(fn: () => Promise<void>) {
     if (operationLock.current) return;
     operationLock.current = true;
@@ -185,14 +273,15 @@ export function Workspace() {
       operationLock.current = false;
     }
   }
-  function navigate(v: View) {
+  function navigate(v: View, alert: Notification | null = null) {
+    setActiveAlert(alert);
+    setLinkedObligation(null);
+    window.scrollTo(0, 0);
     setView(v);
-    setMenu(false);
     setError("");
     setMessage("");
   }
-  async function upload(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  async function upload(file: File | undefined) {
     if (!file || !business) return;
     if (!validLogo(file)) {
       setError("Choose a PNG, JPEG or WebP image, up to 500 KB.");
@@ -224,30 +313,36 @@ export function Workspace() {
         warning = !!error;
       }
       await refresh(b.id);
-      setMessage(
-        warning
-          ? "Logo updated. The previous unused image could not be removed."
-          : "Logo updated.",
-      );
+      setMessage("Logo updated.");
+      if (warning) notify("warning", "The previous logo could not be removed.");
     });
-    e.target.value = "";
   }
   async function archive(b: Business, restore = false) {
     if (
-      !confirm(
-        `${restore ? "Restore" : "Archive"} “${b.name}”? ${restore ? "It will return to your active businesses." : "Records will be preserved. You can restore it later."}`,
-      )
+      (await confirm({
+        title: `${restore ? "Restore" : "Archive"} ${b.name}?`,
+        description: restore
+          ? "This business will return to your active list."
+          : "Records are preserved. You can restore the business from Archived.",
+        action: restore ? "Restore business" : "Archive business",
+        danger: !restore,
+        perform: async () => {
+          await command("archive_business", {
+            business_id: b.id,
+            archived: !restore,
+          });
+        },
+      })) === null
     )
       return;
-    await run(async () => {
-      await command("archive_business", {
-        business_id: b.id,
-        archived: !restore,
-      });
+    try {
       await refresh(restore ? b.id : undefined);
-      setMessage(restore ? "Business restored." : "Business archived.");
       navigate(restore ? "overview" : "archived");
-    });
+      setMessage(restore ? "Business restored." : "Business archived.");
+    } catch (err) {
+      setMessage(restore ? "Business restored." : "Business archived.");
+      setError(readableError(err));
+    }
   }
   if (!configured)
     return (
@@ -262,107 +357,148 @@ export function Workspace() {
       </main>
     );
   const navigation = [
-    { id: "expenses", text: "Expenses", icon: LayoutDashboard },
-    { id: "loans", text: "Loans", icon: LayoutDashboard },
-    { id: "funds", text: "Collections", icon: LayoutDashboard },
-    { id: "settlements", text: "Settlements", icon: LayoutDashboard },
-    { id: "targets", text: "Daily targets", icon: LayoutDashboard },
     { id: "overview", text: "Overview", icon: LayoutDashboard },
-    { id: "notifications", text: unreadCount?`Notifications (${unreadCount})`:"Notifications", icon: Bell },
+    { id: "calendar", text: "Calendar", icon: CalendarDays },
+    { id: "expenses", text: "Expenses", icon: Receipt },
+    { id: "loans", text: "Loans", icon: Landmark },
+    { id: "funds", text: "Collections", icon: Wallet },
+    { id: "settlements", text: "Settlements", icon: ArrowLeftRight },
+    { id: "targets", text: "Daily targets", icon: Target },
     { id: "businesses", text: "Businesses", icon: Building2 },
     { id: "members", text: "People & access", icon: Users },
     { id: "settings", text: "Settings", icon: Settings },
     { id: "archived", text: "Archived", icon: Archive },
   ] as const;
   return (
-    <div className="workspace">
-      <aside className={menu ? "sidebar open" : "sidebar"}>
-        <div className="wordmark">
-          ƒ <span>FlowLedger.</span>
-        </div>
-        <span className="eyebrow">Your workspace</span>
-        <nav>
-          {navigation
-            .filter((n) => n.id !== "members" || owner)
-            .map((n) => (
-              <button
-                key={n.id}
-                className={view === n.id ? "active" : ""}
-                onClick={() => navigate(n.id)}
-              >
-                <n.icon size={19} />
-                {n.text}
-              </button>
+    <SidebarProvider shortcut={false} className="min-h-dvh">
+      <Sidebar collapsible="none" aria-label="Workspace navigation">
+        <div className="workspace-navigation">
+          <SidebarHeader className="wordmark">
+            ƒ <span>FlowLedger.</span>
+          </SidebarHeader>
+          <SidebarContent className="sidebar-navigation">
+            {[
+              { label: "Money", items: navigation.slice(0, 7) },
+              { label: "Business", items: navigation.slice(7) },
+            ].map(({ label, items }) => (
+              <SidebarGroup key={label}>
+                <SidebarGroupLabel className="nav-group-label">
+                  {label}
+                </SidebarGroupLabel>
+                <SidebarMenu aria-label={label}>
+                  {items
+                    .filter((n) => n.id !== "members" || owner)
+                    .map((n) => (
+                      <li key={n.id}>
+                        <NavigationButton
+                          className={view === n.id ? "active" : ""}
+                          aria-current={view === n.id ? "page" : undefined}
+                          onClick={() => navigate(n.id)}
+                        >
+                          <n.icon size={19} />
+                          {n.text}
+                        </NavigationButton>
+                      </li>
+                    ))}
+                </SidebarMenu>
+              </SidebarGroup>
             ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <p>
-            A little clarity,
-            <br />
-            every day.
-          </p>
-          <span>{user?.email}</span>
-          <button
-            onClick={() =>
-              run(async () => {
-                const { error } = await client().auth.signOut();
-                if (error) throw error;
-              })
-            }
-            disabled={busy}
-          >
-            <LogOut size={17} />
-            Sign out
-          </button>
+          </SidebarContent>
         </div>
-      </aside>
-      <main className="main">
+      </Sidebar>
+      <SidebarInset className="main" render={(props) => <main {...props} />}>
         <header className="topbar">
-          <button
-            className="mobile-menu"
-            aria-label={menu ? "Close navigation" : "Open navigation"}
-            onClick={() => setMenu(!menu)}
-          >
-            {menu ? <X /> : <Menu />}
-          </button>
-          <div className="business-picker">
-            <div className="mini-logo">
-              {logo ? (
-                <img src={logo} alt="Business logo" />
-              ) : (
-                <Building2 size={22} />
-              )}
-            </div>
-            <label>
-              <span className="eyebrow">Your business</span>
-              <select
-                aria-label="Active business"
-                value={active}
-                onChange={(e) => {
-                  setActive(e.target.value);
-                  navigate("overview");
-                }}
-                disabled={busy}
+          <SidebarTrigger size="lg" className="@3xl/sidebar-shell:hidden" />
+          <BusinessSwitcher
+            business={business}
+            logo={logo}
+            userId={user?.id}
+            disabled={busy}
+            businesses={businesses.filter((item) => !item.archived_at)}
+            onSelect={(id) => {
+              setActive(id);
+              navigate("overview");
+            }}
+            onManage={() => navigate("businesses")}
+            onCreate={() => navigate("create")}
+          />
+          <div className="workspace-account">
+            {business && (
+              <VipButton
+                type="button"
+                size="lg"
+                iconOnly
+                variant="secondary"
+                className="topbar-notifications"
+                aria-label={
+                  unreadCount
+                    ? `Notifications, ${unreadCount} unread`
+                    : "Notifications"
+                }
+                aria-pressed={view === "notifications"}
+                onPress={() => navigate("notifications")}
               >
-                <option value="" disabled>
-                  Select business
-                </option>
-                {businesses
-                  .filter((b) => !b.archived_at)
-                  .map((b) => (
-                    <option value={b.id} key={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
+                <Bell size={20} aria-hidden />
+                {unreadCount > 0 && (
+                  <span className="notification-trigger-count" aria-hidden>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </VipButton>
+            )}
+            <ThemeSwitch />
+            <MenuTrigger>
+              <Button
+                type="button"
+                secondary
+                iconOnly
+                aria-label="Account menu"
+              >
+                <CircleUserRound aria-hidden />
+              </Button>
+              <MenuPopover placement="bottom end">
+                <MenuContent aria-label="Account">
+                  <MenuItem isDisabled textValue={user?.email ?? "Signed in"}>
+                    {user?.email ?? "Signed in"}
+                  </MenuItem>
+                  <MenuSeparator />
+                  <MenuItem onAction={() => navigate("businesses")}>
+                    Your businesses
+                  </MenuItem>
+                  <MenuItem
+                    isDisabled={!business}
+                    onAction={() => navigate("settings")}
+                  >
+                    Business settings
+                  </MenuItem>
+                  <MenuSeparator />
+                  <MenuItem
+                    isDisabled={busy}
+                    onAction={() =>
+                      run(async () => {
+                        const { error } = await client().auth.signOut();
+                        if (error) throw error;
+                      })
+                    }
+                  >
+                    <LogOut size={16} aria-hidden />
+                    Sign out
+                  </MenuItem>
+                </MenuContent>
+              </MenuPopover>
+            </MenuTrigger>
           </div>
-          <Button secondary onClick={() => navigate("create")} disabled={busy}>
-            <Plus size={18} />
-            Business
-          </Button>
         </header>
         <div className="content">
+          <ToastFeedback
+            error={error}
+            message={message}
+            warning={
+              !online
+                ? "You’re offline. Changes can be saved when you reconnect."
+                : undefined
+            }
+          />
           {!online && (
             <Notice error>
               You’re offline. Reconnect before changing any records.
@@ -371,17 +507,19 @@ export function Workspace() {
           {error && (
             <Notice error>
               {error}{" "}
-              <button
+              <VipButton
+                type="button"
+                variant="minimal"
                 className="text-link"
                 onClick={() => run(() => refresh())}
               >
                 Refresh
-              </button>
+              </VipButton>
             </Notice>
           )}
-          {message && <Notice>{message}</Notice>}
+
           {token && (
-            <section className="card invitation-banner">
+            <Card className="card invitation-banner">
               <h2>You have a business invitation</h2>
               <p>Accept using the verified email address the owner invited.</p>
               <Button
@@ -401,7 +539,7 @@ export function Workspace() {
               >
                 Accept invitation
               </Button>
-            </section>
+            </Card>
           )}
           {view === "create" || view === "edit" ? (
             <BusinessForm
@@ -416,19 +554,19 @@ export function Workspace() {
             />
           ) : (
             <>
-              <div className="page-heading">
+              <div className={view === "overview" ? "sr-only" : "page-heading"}>
                 <div>
-                  <span className="eyebrow">Your money, in focus</span>
-                  <h1>
+                  <h1 ref={pageHeading} tabIndex={-1}>
                     {
                       {
-                        overview: "Financial dashboard",
-                        notifications: "Notifications & reminders",
+                        overview: "Overview",
+                        calendar: "Payment calendar",
+                        notifications: "Notifications",
                         expenses: "Expenses & categories",
                         loans: "Loans & instalments",
                         funds: "Collections & external funding",
                         settlements: "Settlements & payments",
-                        targets: "Smart daily collection targets",
+                        targets: "Daily collection targets",
                         businesses: "Your businesses",
                         members: "People & access",
                         settings: "Business settings",
@@ -436,11 +574,6 @@ export function Workspace() {
                       }[view]
                     }
                   </h1>
-                  <p className="muted">
-                    {business && view === "overview"
-                      ? `${business.name} · A clearer view of what’s ahead.`
-                      : "A workspace that grows with your business."}
-                  </p>
                 </div>
                 {view === "businesses" && (
                   <Button onClick={() => navigate("create")}>
@@ -458,15 +591,19 @@ export function Workspace() {
                         : b.archived_at === null,
                     )
                     .map((b) => (
-                      <article className="card" key={b.id}>
+                      <Card role="article" className="card" key={b.id}>
                         <Building2 className="accent" />
                         <h2>{b.name}</h2>
                         <p className="muted">
                           {b.description || "No description added."}
                         </p>
-                        <span className="badge">
-                          {b.owner_id === user?.id ? "Admin / Owner" : "Viewer"}
-                        </span>
+                        <Badge
+                          variant={
+                            b.owner_id === user?.id ? "accent" : "neutral"
+                          }
+                        >
+                          {b.owner_id === user?.id ? "Owner" : "Viewer"}
+                        </Badge>
                         <div className="form-actions">
                           {b.archived_at ? (
                             b.owner_id === user?.id ? (
@@ -481,24 +618,40 @@ export function Workspace() {
                               <span className="muted">Archived by owner</span>
                             )
                           ) : (
-                            <Button
-                              secondary
-                              onClick={() => {
-                                setActive(b.id);
-                                navigate("overview");
-                              }}
-                            >
-                              Open business
-                              <ArrowUpRight size={16} />
-                            </Button>
+                            <>
+                              {b.owner_id === user?.id && (
+                                <Button
+                                  type="button"
+                                  secondary
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setActive(b.id);
+                                    navigate("edit");
+                                  }}
+                                >
+                                  <Pencil size={16} aria-hidden /> Edit business
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => {
+                                  setActive(b.id);
+                                  navigate("overview");
+                                }}
+                              >
+                                Open business{" "}
+                                <ArrowUpRight size={16} aria-hidden />
+                              </Button>
+                            </>
                           )}
                         </div>
-                      </article>
+                      </Card>
                     ))}
                   {!businesses.some((b) =>
                     view === "archived" ? b.archived_at : !b.archived_at,
                   ) && (
-                    <section className="card empty">
+                    <Card className="card empty">
                       <Building2 size={32} />
                       <h2>
                         {view === "archived"
@@ -514,11 +667,11 @@ export function Workspace() {
                           Create business
                         </Button>
                       )}
-                    </section>
+                    </Card>
                   )}
                 </div>
               ) : !business ? (
-                <section className="card empty">
+                <Card className="card empty">
                   <Building2 size={36} />
                   <h2>Your workspace starts here</h2>
                   <p>
@@ -528,15 +681,48 @@ export function Workspace() {
                   <Button onClick={() => navigate("create")}>
                     Create your first business
                   </Button>
-                </section>
+                </Card>
               ) : view === "targets" ? (
-                <TargetsPanel key={business.id} business={business} />
+                <TargetsPanel
+                  key={business.id}
+                  business={business}
+                  alert={activeAlert}
+                />
+              ) : view === "calendar" ? (
+                <CalendarPanel
+                  key={business.id}
+                  business={business}
+                  owner={!!owner}
+                  onConfigureCountry={
+                    owner && !business.archived_at
+                      ? () => navigate("edit")
+                      : undefined
+                  }
+                  onOpen={(target, pay) => {
+                    navigate("settlements");
+                    setLinkedObligation({ target, pay });
+                  }}
+                />
               ) : view === "settlements" ? (
-                <SettlementsPanel key={business.id} business={business} owner={!!owner} />
+                <SettlementsPanel
+                  key={business.id}
+                  business={business}
+                  owner={!!owner}
+                  alert={activeAlert}
+                  linkedObligation={linkedObligation}
+                />
               ) : view === "funds" ? (
-                <FundsPanel key={business.id} business={business} owner={!!owner} />
+                <FundsPanel
+                  key={business.id}
+                  business={business}
+                  owner={!!owner}
+                />
               ) : view === "loans" ? (
-                <LoansPanel key={business.id} business={business} owner={!!owner} />
+                <LoansPanel
+                  key={business.id}
+                  business={business}
+                  owner={!!owner}
+                />
               ) : view === "expenses" ? (
                 <ExpensesPanel
                   key={business.id}
@@ -544,82 +730,147 @@ export function Workspace() {
                   owner={!!owner}
                 />
               ) : view === "notifications" && user ? (
-                <NotificationsPanel key={business.id+user.id} business={business} uid={user.id} navigate={navigate} onChange={()=>void updateInbox()} />
+                <NotificationsPanel
+                  mode="inbox"
+                  key={business.id + user.id}
+                  business={business}
+                  uid={user.id}
+                  navigate={navigate}
+                  onChange={() => void updateInbox()}
+                />
               ) : view === "overview" ? (
-                <DashboardPanel key={business.id} business={business} owner={!!owner} navigate={navigate} />
+                <DashboardPanel
+                  key={business.id}
+                  business={business}
+                  navigate={navigate}
+                />
               ) : view === "settings" ? (
-                <div className="overview-grid">
-                  <section className="card">
-                    <h2>{business.name}</h2>
-                    <p className="muted">{business.description}</p>
-                    <dl>
-                      <dt>Currency</dt>
-                      <dd>{business.currency}</dd>
-                      <dt>Timezone</dt>
-                      <dd>{business.timezone}</dd>
-                      <dt>Opening balance</dt>
-                      <dd>
-                        {money(business.opening_balance, business.currency)}
-                      </dd>
-                    </dl>
-                    {owner && (
-                      <Button onClick={() => navigate("edit")}>
-                        Edit business
-                      </Button>
-                    )}
+                <div className="settings-panels">
+                  <section className="settings-panel">
+                    <div>
+                      <h2>Business profile</h2>
+                      <p className="muted">
+                        Currency, opening balance, and working days.
+                      </p>
+                    </div>
+                    <Card className="card">
+                      <p>{business.name}</p>
+                      <p className="muted">{business.description}</p>
+                      <dl>
+                        <dt>Currency</dt>
+                        <dd>{business.currency}</dd>
+                        <dt>Timezone</dt>
+                        <dd>{business.timezone}</dd>
+                        <dt>Working days</dt>
+                        <dd>
+                          {business.business_days
+                            .map((day) => days[day])
+                            .join(", ")}
+                        </dd>
+                        <dt>Opening balance</dt>
+                        <dd>
+                          {money(business.opening_balance, business.currency)}
+                        </dd>
+                      </dl>
+                      {owner && (
+                        <Button onClick={() => navigate("edit")}>
+                          Edit business
+                        </Button>
+                      )}
+                    </Card>
                   </section>
-                  <section className="card">
-                    <h2>Business logo</h2>
-                    {logo && (
-                      <img
-                        className="large-logo"
-                        src={logo}
-                        alt="Business logo"
-                      />
-                    )}
-                    {owner ? (
-                      <label>
-                        Upload a logo
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          disabled={busy || !online}
-                          onChange={upload}
+                  <section className="settings-panel">
+                    <div>
+                      <h2>Business logo</h2>
+                      <p className="muted">
+                        Shown beside the active business in the workspace.
+                      </p>
+                    </div>
+                    <Card className="card">
+                      {logo && (
+                        <img
+                          className="large-logo"
+                          src={logo}
+                          alt="Business logo"
                         />
-                        <small>PNG, JPEG or WebP · up to 500 KB</small>
-                      </label>
-                    ) : (
-                      <p className="muted">
-                        Only the owner can change the logo.
-                      </p>
-                    )}
+                      )}
+                      {owner ? (
+                        <div className="stack">
+                          <FileTrigger
+                            acceptedFileTypes={[
+                              "image/png",
+                              "image/jpeg",
+                              "image/webp",
+                            ]}
+                            onSelect={(files) => void upload(files?.[0])}
+                          >
+                            <Button
+                              type="button"
+                              secondary
+                              disabled={busy || !online}
+                            >
+                              Upload a logo
+                            </Button>
+                          </FileTrigger>
+                          <small>PNG, JPEG or WebP · up to 500 KB</small>
+                        </div>
+                      ) : (
+                        <p className="muted">
+                          Only the owner can change the logo.
+                        </p>
+                      )}
+                    </Card>
                   </section>
+                  {user && (
+                    <section className="settings-panel">
+                      <div>
+                        <h2>Notifications</h2>
+                        <p className="muted">
+                          Choose which reminders you receive for this business.
+                        </p>
+                      </div>
+                      <NotificationsPanel
+                        key={business.id + user.id}
+                        mode="preferences"
+                        business={business}
+                        uid={user.id}
+                        navigate={navigate}
+                        onChange={() => void updateInbox()}
+                      />
+                    </section>
+                  )}
                   {owner && (
-                    <section className="card">
-                      <h2>Archive business</h2>
-                      <p className="muted">
-                        Hide this business from the active list. Its records are
-                        preserved and can be restored.
-                      </p>
-                      <Button
-                        secondary
-                        disabled={busy}
-                        onClick={() => archive(business)}
-                      >
-                        Archive {business.name}
-                      </Button>
+                    <section className="settings-panel">
+                      <div>
+                        <h2>Archive business</h2>
+                      </div>
+                      <Card className="card">
+                        <p className="muted">
+                          Hide this business from the active list. Its records
+                          are preserved and can be restored.
+                        </p>
+                        <Button
+                          secondary
+                          danger
+                          disabled={busy}
+                          onClick={() => archive(business)}
+                        >
+                          Archive {business.name}
+                        </Button>
+                      </Card>
                     </section>
                   )}
                 </div>
               ) : view === "members" && owner ? (
                 <div className="overview-grid">
-                  <section className="card">
+                  <Card className="card">
                     <h2>Invite a viewer</h2>
                     <p className="muted">
                       Viewers can read this business. Only you can change its
                       details.
                     </p>
-                    <form
+                    <Form
+                      validationBehavior="native"
                       className="stack"
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -637,30 +888,26 @@ export function Workspace() {
                         });
                       }}
                     >
-                      <label>
-                        Email
-                        <input
-                          type="email"
-                          required
-                          value={email}
-                          maxLength={254}
-                          onChange={(e) => setEmail(e.target.value)}
-                        />
-                      </label>
+                      <TextField
+                        label="Email"
+                        type="email"
+                        isRequired
+                        value={email}
+                        maxLength={254}
+                        onChange={(nextValue) => setEmail(nextValue)}
+                        isDisabled={busy}
+                      />
                       <Button disabled={busy || !online}>
                         Create invitation link
                       </Button>
-                    </form>
+                    </Form>
                     {inviteLink && (
                       <div className="stack">
-                        <label>
-                          Invitation link
-                          <input
-                            value={inviteLink}
-                            readOnly
-                            onFocus={(e) => e.target.select()}
-                          />
-                        </label>
+                        <TextField
+                          label="Invitation link"
+                          value={inviteLink}
+                          isReadOnly
+                        />
                         <Button
                           secondary
                           onClick={() =>
@@ -681,8 +928,8 @@ export function Workspace() {
                     <Notice>
                       Email delivery is not connected. Share the link manually.
                     </Notice>
-                  </section>
-                  <section className="card">
+                  </Card>
+                  <Card className="card">
                     <h2>Business members</h2>
                     {members.map((m) => (
                       <div className="member-row" key={m.user_id}>
@@ -696,25 +943,37 @@ export function Workspace() {
                           <Button
                             secondary
                             disabled={busy}
-                            onClick={() => {
-                              if (confirm(`Remove access for ${m.email}?`))
-                                run(async () => {
+                            danger
+                            onClick={async () => {
+                              const accepted = await confirm({
+                                title: `Remove access for ${m.email}?`,
+                                description:
+                                  "This person will lose access to the business and its records.",
+                                action: "Remove access",
+                                danger: true,
+                                perform: async () => {
                                   await command("remove_viewer", {
                                     business_id: business.id,
                                     user_id: m.user_id,
                                   });
-                                  setMembers(await listMembers(business.id));
-                                  setMessage("Viewer access removed.");
-                                });
+                                },
+                              });
+                              if (accepted === null) return;
+                              setMessage("Viewer access removed.");
+                              try {
+                                setMembers(await listMembers(business.id));
+                              } catch (err) {
+                                setError(readableError(err));
+                              }
                             }}
                           >
-                            Remove
+                            Remove access
                           </Button>
                         )}
                       </div>
                     ))}
-                  </section>
-                  <section className="card wide">
+                  </Card>
+                  <Card className="card wide">
                     <h2>Invitations</h2>
                     {invites.length ? (
                       invites.map((i) => (
@@ -726,7 +985,15 @@ export function Workspace() {
                               {new Date(i.expires_at).toLocaleDateString()}
                             </small>
                           </div>
-                          <span className="badge">{invitationStatus(i)}</span>
+                          <Badge
+                            variant={
+                              invitationStatus(i) === "Pending"
+                                ? "warning"
+                                : "neutral"
+                            }
+                          >
+                            {invitationStatus(i)}
+                          </Badge>
                           {invitationStatus(i) === "Pending" && (
                             <Button
                               secondary
@@ -753,19 +1020,30 @@ export function Workspace() {
                     ) : (
                       <p className="muted">No invitations yet.</p>
                     )}
-                  </section>
+                  </Card>
                 </div>
               ) : (
                 <Notice>Only the owner can manage access.</Notice>
               )}
             </>
           )}
-          <footer>
-            FlowLedger · A little clarity, every day.
-            <span>Phase 5 · {business?.currency || "LKR"}</span>
-          </footer>
         </div>
-      </main>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+
+function NavigationButton({ onClick, ...props }: VipButtonProps) {
+  const { setMobileOpen } = useSidebar();
+  return (
+    <VipButton
+      variant="ghost"
+      {...props}
+      type="button"
+      onClick={(event) => {
+        setMobileOpen(false);
+        onClick?.(event);
+      }}
+    />
   );
 }

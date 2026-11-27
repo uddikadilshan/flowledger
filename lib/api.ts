@@ -38,8 +38,10 @@ export async function saveBusiness(
   input: BusinessInput,
   id?: string,
 ): Promise<string> {
-  return (await command(id ? "update_business" : "create_business", {
-    ...input,
-    ...(id ? { business_id: id } : {}),
-  })) as string;
+  const { data, error } = await client().rpc("flowledger_save_business", {
+    action: id ? "update_business" : "create_business",
+    payload: { ...input, ...(id ? { business_id: id } : {}) },
+  });
+  if (error) throw error;
+  return data as string;
 }
